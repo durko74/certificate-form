@@ -1,5 +1,5 @@
 // Конфигурация - ЗАМЕНИТЕ НА ВАШ URL GOOGLE APPS SCRIPT
-const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbywFZJ6ZA8tVgL58Iwz6xPRILAr1YFSXlFhGw7rpLDFqqD7A5_wY_jVx6dFPS-pSl8YHQ/exec';
+const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyVvQF41ZH8vyoI0hMh4Kzex26xvuBNtceQTtiLIcz-ZeXCXydzvVokxjq7usMopDvjpA/exec';
 
 // Глобальные переменные
 let mkbData = [];
