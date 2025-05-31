@@ -1,169 +1,142 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Медицинская система</title>
-  <script>
-    // Конфигурация
-    const CONFIG = {
-      scriptUrl: "https://script.google.com/macros/s/AKfycbwDdgakBtPLXMoCGmrXe5hYNAPtMN-AmPFaI60yKTNYUfu64wNNmlrdPGrykmWa6nPDBg/exec",
-      retryCount: 3,
-      retryDelay: 1000,
-      useProxy: false,
-      proxyUrl: "https://cors-anywhere.herokuapp.com/"
-    };
-
-    // Универсальная функция для запросов
-    async function makeRequest(action, data = {}, method = 'POST') {
-      let attempts = 0;
-      let lastError = null;
-      
-      const url = CONFIG.useProxy 
-        ? `${CONFIG.proxyUrl}${CONFIG.scriptUrl}`
-        : CONFIG.scriptUrl;
-
-      const requestUrl = new URL(url);
-      
-      if (method === 'GET') {
-        requestUrl.searchParams.append('action', action);
-        for (const [key, value] of Object.entries(data)) {
-          requestUrl.searchParams.append(key, value);
-        }
-      }
-
-      while (attempts < CONFIG.retryCount) {
-        try {
-          const options = {
-            method,
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            mode: 'cors'
-          };
-
-          if (method === 'POST') {
-            options.body = JSON.stringify({ action, ...data });
-          }
-
-          const response = await fetch(requestUrl, options);
-          
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          
-          const result = await response.json();
-          
-          if (result.result === 'error') {
-            throw new Error(result.message || 'Unknown server error');
-          }
-          
-          return result.data;
-          
-        } catch (error) {
-          lastError = error;
-          attempts++;
-          
-          if (attempts === CONFIG.retryCount - 1 && !CONFIG.useProxy) {
-            CONFIG.useProxy = true;
-            console.log('Switching to proxy for next attempt...');
-          }
-          
-          if (attempts < CONFIG.retryCount) {
-            await new Promise(resolve => setTimeout(resolve, CONFIG.retryDelay));
-          }
-        }
-      }
-      
-      throw lastError;
-    }
-
-    // API функции
-    async function loadMkbData() {
-      try {
-        return await makeRequest('getMkb', {}, 'GET');
-      } catch (error) {
-        console.error('Ошибка загрузки MKB:', error);
-        throw error;
-      }
-    }
-
-    async function submitFormData(formData) {
-      try {
-        return await makeRequest('submitForm', formData);
-      } catch (error) {
-        console.error('Ошибка отправки формы:', error);
-        throw error;
-      }
-    }
-
-    // Инициализация приложения
-    document.addEventListener('DOMContentLoaded', () => {
-      // Загрузка данных при старте
-      loadMkbData().then(data => {
-        const container = document.getElementById('mkb-container');
-        if (data && data.mkbCodes) {
-          container.innerHTML = data.mkbCodes.map(item => 
-            `<div class="mkb-item">
-              <span class="mkb-code">${item.code}</span>
-              <span class="mkb-desc">${item.description}</span>
-            </div>`
-          ).join('');
-        }
-      });
-
-      // Обработчик формы
-      document.getElementById('medicalForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const formData = {
-          patientName: e.target.elements.patientName.value,
-          diagnosis: e.target.elements.diagnosis.value,
-          date: new Date().toISOString()
-        };
-
-        try {
-          document.getElementById('submitBtn').disabled = true;
-          const result = await submitFormData(formData);
-          alert('Данные успешно сохранены!');
-          e.target.reset();
-        } catch (error) {
-          alert('Ошибка: ' + error.message);
-        } finally {
-          document.getElementById('submitBtn').disabled = false;
-        }
-      });
-    });
-  </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Медицинские записи - Ввод данных</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏥</text></svg>">
 </head>
 <body>
-  <div class="container">
-    <h1>Медицинская карта</h1>
-    
-    <div class="mkb-list">
-      <h2>Справочник МКБ</h2>
-      <div id="mkb-container" class="mkb-container">
-        <!-- Сюда загрузится список кодов -->
-        Загрузка...
-      </div>
-    </div>
-    
-    <div class="form-container">
-      <h2>Ввод данных пациента</h2>
-      <form id="medicalForm">
-        <div class="form-group">
-          <label for="patientName">ФИО пациента:</label>
-          <input type="text" id="patientName" required>
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="mb-0">
+                <span class="me-2">🏥</span>
+                Медицинская карта пациента
+            </h1>
+            <div id="currentDate" class="text-muted"></div>
         </div>
         
-        <div class="form-group">
-          <label for="diagnosis">Код диагноза (МКБ):</label>
-          <input type="text" id="diagnosis" required>
-        </div>
+        <form id="patientForm" class="needs-validation" novalidate>
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Основная информация</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="lastName" class="form-label">Фамилия*</label>
+                            <input type="text" class="form-control" id="lastName" required>
+                            <div class="invalid-feedback">Пожалуйста, укажите фамилию</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="firstName" class="form-label">Имя*</label>
+                            <input type="text" class="form-control" id="firstName" required>
+                            <div class="invalid-feedback">Пожалуйста, укажите имя</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="middleName" class="form-label">Отчество</label>
+                            <input type="text" class="form-control" id="middleName">
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label for="birthDate" class="form-label">Дата рождения*</label>
+                            <input type="date" class="form-control" id="birthDate" required>
+                            <div class="invalid-feedback">Пожалуйста, укажите дату рождения</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="age" class="form-label">Возраст</label>
+                            <input type="text" class="form-control" id="age" readonly>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="gender" class="form-label">Пол*</label>
+                            <select class="form-select" id="gender" required>
+                                <option value="" selected disabled>Выберите пол</option>
+                                <option value="М">Мужской</option>
+                                <option value="Ж">Женский</option>
+                            </select>
+                            <div class="invalid-feedback">Пожалуйста, укажите пол</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="visitDate" class="form-label">Дата посещения*</label>
+                            <input type="date" class="form-control" id="visitDate" required>
+                            <div class="invalid-feedback">Пожалуйста, укажите дату посещения</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Медицинская информация</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6 has-suggestions">
+                            <label for="mkbCode" class="form-label">Код МКБ-10</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="mkbCode" autocomplete="off" placeholder="Начните вводить код">
+                                <button class="btn btn-outline-secondary" type="button" id="clearMkb" title="Очистить поле">×</button>
+                            </div>
+                            <div id="mkbSuggestions" class="suggestions-container"></div>
+                            <small class="text-muted">Пример: A00, J18, S72.0</small>
+                        </div>
+                        <div class="col-md-6 has-suggestions">
+                            <label for="diagnosis" class="form-label">Диагноз</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="diagnosis" autocomplete="off" placeholder="Начните вводить диагноз">
+                                <button class="btn btn-outline-secondary" type="button" id="clearDiagnosis" title="Очистить поле">×</button>
+                            </div>
+                            <div id="diagnosisSuggestions" class="suggestions-container"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="notes" class="form-label">Примечания</label>
+                            <textarea class="form-control" id="notes" rows="3" placeholder="Дополнительная информация..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <button type="submit" class="btn btn-primary" id="submitBtn">
+                    <span id="submitText">Сохранить</span>
+                    <span id="submitSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="clearForm">
+                    <i class="bi bi-eraser"></i> Очистить форму
+                </button>
+            </div>
+        </form>
         
-        <button type="submit" id="submitBtn">Сохранить</button>
-      </form>
+        <div id="message" class="mt-4"></div>
+        
+        <footer class="mt-5 text-center text-muted">
+            <hr>
+            <p>Медицинская система &copy; 2023 | Версия 1.0.0</p>
+        </footer>
     </div>
-  </div>
+
+    <!-- Скрипты -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/app.js"></script>
+    
+    <script>
+        // Отображение текущей даты
+        document.addEventListener('DOMContentLoaded', function() {
+            const options = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            };
+            document.getElementById('currentDate').textContent = new Date().toLocaleDateString('ru-RU', options);
+        });
+    </script>
 </body>
 </html>
