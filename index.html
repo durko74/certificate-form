@@ -508,27 +508,48 @@
         }
 
         // Расчет возраста
-        function calculateAge() {
-            try {
-                const birthDate = new Date(document.getElementById("birthDate").value);
-                const deathDate = new Date(document.getElementById("deathDate").value);
-                
-                if (isNaN(birthDate)) throw new Error("Неверная дата рождения");
-                if (isNaN(deathDate)) throw new Error("Неверная дата смерти");
-                
-                let age = deathDate.getFullYear() - birthDate.getFullYear();
-                const monthDiff = deathDate.getMonth() - birthDate.getMonth();
-                
-                if (monthDiff < 0 || (monthDiff === 0 && deathDate.getDate() < birthDate.getDate())) {
-                    age--;
-                }
-                
-                document.getElementById("age").value = age;
-            } catch (error) {
-                console.error("Ошибка расчета возраста:", error);
-                document.getElementById("age").value = "";
-            }
+function calculateAge() {
+    try {
+        // Получаем значения дат
+        const birthDateStr = document.getElementById("birthDate").value;
+        const deathDateStr = document.getElementById("deathDate").value;
+        
+        // Проверяем, что даты введены
+        if (!birthDateStr || !deathDateStr) {
+            document.getElementById("age").value = "";
+            return;
         }
+        
+        // Создаем объекты Date
+        const birthDate = new Date(birthDateStr);
+        const deathDate = new Date(deathDateStr);
+        
+        // Проверяем валидность дат
+        if (isNaN(birthDate.getTime())) throw new Error("Неверная дата рождения");
+        if (isNaN(deathDate.getTime())) throw new Error("Неверная дата смерти");
+        
+        // Проверяем, что дата смерти не раньше даты рождения
+        if (deathDate < birthDate) {
+            throw new Error("Дата смерти не может быть раньше даты рождения");
+        }
+        
+        // Вычисляем возраст
+        let age = deathDate.getFullYear() - birthDate.getFullYear();
+        const monthDiff = deathDate.getMonth() - birthDate.getMonth();
+        
+        // Корректируем возраст, если день рождения еще не наступил
+        if (monthDiff < 0 || (monthDiff === 0 && deathDate.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        
+        document.getElementById("age").value = age;
+    } catch (error) {
+        console.error("Ошибка расчета возраста:", error);
+        document.getElementById("age").value = "";
+        // Можно также показать сообщение об ошибке пользователю
+        showError(error.message); // Если у вас есть такая функция
+    }
+}
 
         // Отправка формы
         function submitForm() {
