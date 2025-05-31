@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Форма ввода данных о смерти</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"],
+        input[type="date"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            margin: 0 -10px;
+        }
+        .col {
+            flex: 1;
+            padding: 0 10px;
+            min-width: 200px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            display: block;
+            margin: 20px auto;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .autocomplete {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        .autocomplete-items {
+            position: absolute;
+            border: 1px solid #d4d4d4;
+            border-bottom: none;
+            border-top: none;
+            z-index: 99;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .autocomplete-items div {
+            padding: 10px;
+            cursor: pointer;
+            background-color: #fff;
+            border-bottom: 1px solid #d4d4d4;
+        }
+        .autocomplete-items div:hover {
+            background-color: #e9e9e9;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            font-size: 18px;
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 10px;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Форма ввода данных о смерти</h1>
+        <div id="loading" class="loading">Загрузка данных МКБ-10...</div>
+        <form id="deathForm" style="display:none;">
+            <!-- Вся форма из предыдущего примера остается без изменений -->
+            <!-- ... -->
+        </form>
+    </div>
+
+    <script>
+        // URL вашего веб-приложения Apps Script (замените на свой)
+        var scriptUrl = "https://script.google.com/macros/s/AKfycbwY9aIpfMeEnnB1UfIIeT9VgI6_DUdGEkCsa_mPVLgCF_UIakSoFFpSOW_bj2-2SeJ8cw/exec";
+        var mkbData = [];
+
+        // Функция для загрузки данных МКБ-10
+        function loadMkbData() {
+            $('#loading').show();
+            
+            $.ajax({
+                url: scriptUrl + "?action=getMkb",
+                type: "GET",
+                dataType: "json",
+                success: function(data) {
+                    mkbData = data;
+                    $('#deathForm').show();
+                    $('#loading').hide();
+                    initAutocomplete();
+                },
+                error: function(xhr, status, error) {
+                    $('#loading').html('Ошибка загрузки данных МКБ-10. Пожалуйста, обновите страницу.');
+                    console.error("Ошибка загрузки МКБ:", error);
+                }
+            });
+        }
+
+        // Функция для автодополнения
+        function autocomplete(inp, arr, isCodeField = false, linkedField = null) {
+            var currentFocus;
+            
+            inp.addEventListener("input", function(e) {
+                var a, b, i, val = this.value;
+                closeAllLists();
+                if (!val) { return false; }
+                currentFocus = -1;
+                
+                a = document.createElement("DIV");
+                a.setAttribute("id", this.id + "autocomplete-list");
+                a.setAttribute("class", "autocomplete-items");
+                this.parentNode.appendChild(a);
+                
+                // Фильтрация данных
+                var filteredArr = arr.filter(function(item) {
+                    if (isCodeField) {
+                        return item.code.toUpperCase().includes(val.toUpperCase());
+                    } else {
+                        return item.diagnosis.toUpperCase().includes(val.toUpperCase());
+                    }
+                }).slice(0, 10); // Ограничиваем 10 подсказками
+                
+                for (i = 0; i < filteredArr.length; i++) {
+                    b = document.createElement("DIV");
+                    if (isCodeField) {
+                        b.innerHTML = "<strong>" + filteredArr[i].code + "</strong> - " + filteredArr[i].diagnosis;
+                        b.innerHTML += "<input type='hidden' value='" + filteredArr[i].code + "'>";
+                    } else {
+                        b.innerHTML = "<strong>" + filteredArr[i].diagnosis + "</strong> - " + filteredArr[i].code;
+                        b.innerHTML += "<input type='hidden' value='" + filteredArr[i].diagnosis + "'>";
+                    }
+                    
+                    b.addEventListener("click", function(e) {
+                        inp.value = this.getElementsByTagName("input")[0].value;
+                        
+                        // Если есть связанное поле, заполняем его
+                        if (linkedField) {
+                            var linkedValue = isCodeField 
+                                ? this.textContent.split(" - ")[1] 
+                                : this.textContent.split(" - ")[1];
+                            document.getElementById(linkedField).value = linkedValue;
+                        }
+                        
+                        closeAllLists();
+                    });
+                    a.appendChild(b);
+                }
+            });
+            
+            // ... остальные функции автодополнения без изменений ...
+        }
+
+        // Инициализация автодополнения после загрузки данных
+        function initAutocomplete() {
+            // Диагнозы и связанные с ними поля кодов
+            autocomplete(document.getElementById("diseaseA"), mkbData, false, "mkbA");
+            autocomplete(document.getElementById("mkbA"), mkbData, true, "diseaseA");
+            
+            autocomplete(document.getElementById("diseaseB"), mkbData, false, "mkbB");
+            autocomplete(document.getElementById("mkbB"), mkbData, true, "diseaseB");
+            
+            autocomplete(document.getElementById("diseaseC"), mkbData, false, "mkbC");
+            autocomplete(document.getElementById("mkbC"), mkbData, true, "diseaseC");
+            
+            // Расчет возраста при изменении дат
+            document.getElementById("birthDate").addEventListener("change", calculateAge);
+            document.getElementById("deathDate").addEventListener("change", calculateAge);
+            
+            // Обработка отправки формы
+            document.getElementById("deathForm").addEventListener("submit", function(e) {
+                e.preventDefault();
+                submitForm();
+            });
+        }
+
+        // Функция для расчета возраста
+        function calculateAge() {
+            var birthDate = new Date(document.getElementById("birthDate").value);
+            var deathDate = new Date(document.getElementById("deathDate").value);
+            
+            if (isNaN(birthDate.getTime()) || isNaN(deathDate.getTime())) {
+                return;
+            }
+            
+            var age = deathDate.getFullYear() - birthDate.getFullYear();
+            var m = deathDate.getMonth() - birthDate.getMonth();
+            
+            if (m < 0 || (m === 0 && deathDate.getDate() < birthDate.getDate())) {
+                age--;
+            }
+            
+            document.getElementById("age").value = age;
+        }
+
+        // Функция для отправки данных в Google Таблицы
+        function submitForm() {
+            var formData = {
+                fullName: document.getElementById("fullName").value,
+                gender: document.getElementById("gender").value,
+                birthDate: document.getElementById("birthDate").value,
+                deathDate: document.getElementById("deathDate").value,
+                age: document.getElementById("age").value,
+                address: document.getElementById("address").value,
+                diseaseA: document.getElementById("diseaseA").value,
+                mkbA: document.getElementById("mkbA").value,
+                diseaseB: document.getElementById("diseaseB").value,
+                mkbB: document.getElementById("mkbB").value,
+                diseaseC: document.getElementById("diseaseC").value,
+                mkbC: document.getElementById("mkbC").value,
+                deathPlace: document.getElementById("deathPlace").value,
+                district: document.getElementById("district").value,
+                doctorName: document.getElementById("doctorName").value,
+                medicalExams: document.getElementById("medicalExams").value,
+                dispensaryAccount: document.getElementById("dispensaryAccount").value
+            };
+            
+            $('#loading').show().html('Отправка данных...');
+            
+            $.ajax({
+                url: scriptUrl,
+                type: "POST",
+                data: JSON.stringify(formData),
+                contentType: "application/json",
+                dataType: "json",
+                success: function(response) {
+                    $('#loading').html('Данные успешно сохранены!');
+                    setTimeout(function() {
+                        $('#loading').hide();
+                        document.getElementById("deathForm").reset();
+                    }, 2000);
+                },
+                error: function(xhr, status, error) {
+                    $('#loading').html('Ошибка при сохранении данных: ' + 
+                        (xhr.responseJSON && xhr.responseJSON.message || error));
+                }
+            });
+        }
+
+        // Загрузка данных при открытии страницы
+        $(document).ready(function() {
+            loadMkbData();
+        });
+    </script>
+</body>
+</html>
