@@ -513,7 +513,7 @@
                 const birthDate = new Date(document.getElementById("birthDate").value);
                 const deathDate = new Date(document.getElementById("deathDate").value);
                 
-                if (isNaN(birthDate) throw new Error("Неверная дата рождения");
+                if (isNaN(birthDate)) throw new Error("Неверная дата рождения");
                 if (isNaN(deathDate)) throw new Error("Неверная дата смерти");
                 
                 let age = deathDate.getFullYear() - birthDate.getFullYear();
