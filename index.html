@@ -6,8 +6,9 @@
     <title>Медицинская форма ввода данных</title>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <style>
+        /* Стили остаются без изменений */
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif;
             line-height: 1.6;
             margin: 0;
             padding: 20px;
@@ -195,8 +196,8 @@
         <div id="errorContainer" class="error-message"></div>
         <div id="successContainer" class="success-message"></div>
         
+        <!-- Форма остается без изменений -->
         <form id="deathForm" style="display:none;">
-            <!-- Основные данные -->
             <div class="section">
                 <h2 class="section-title">Основные данные</h2>
                 <div class="row">
@@ -337,16 +338,14 @@
     </div>
 
     <script>
-        // Конфигурация приложения
+        // Конфигурация
         const CONFIG = {
-            scriptUrl: "https://script.google.com/macros/s/AKfycbwY9aIpfMeEnnB1UfIIeT9VgI6_DUdGEkCsa_mPVLgCF_UIakSoFFpSOW_bj2-2SeJ8cw/exec", // Замените на ваш URL
+            scriptUrl: "https://script.google.com/macros/s/AKfycbwY9aIpfMeEnnB1UfIIeT9VgI6_DUdGEkCsa_mPVLgCF_UIakSoFFpSOW_bj2-2SeJ8cw/exec", // ЗАМЕНИТЕ НА ВАШ URL
             maxSuggestions: 10,
             defaultMkbData: [
                 {code: "I21.0", diagnosis: "Острый трансмуральный инфаркт передней стенки миокарда"},
                 {code: "I21.1", diagnosis: "Острый трансмуральный инфаркт нижней стенки миокарда"},
-                {code: "I21.9", diagnosis: "Острый инфаркт миокарда неуточненный"},
-                {code: "E11.9", diagnosis: "Инсулиннезависимый сахарный диабет без осложнений"},
-                {code: "J18.9", diagnosis: "Пневмония неуточненная"}
+                {code: "I21.9", diagnosis: "Острый инфаркт миокарда неуточненный"}
             ]
         };
 
@@ -354,46 +353,52 @@
         let mkbData = [];
         let isFormSubmitting = false;
 
-        // Основная функция инициализации
+        // Основная инициализация
         $(document).ready(function() {
-            // Проверяем загрузку jQuery
+            initializeApplication();
+        });
+
+        function initializeApplication() {
+            // Проверяем jQuery
             if (!window.jQuery) {
-                showError('Библиотека jQuery не загружена. Некоторые функции могут работать некорректно.');
+                showError("jQuery не загружен. Некоторые функции могут не работать.");
                 loadDefaultMkbData();
                 return;
             }
-
-            // Загружаем данные МКБ
+            
+            // Загружаем данные
             loadMkbData();
             
-            // Инициализируем обработчики событий
-            initEventListeners();
-        });
+            // Инициализируем обработчики
+            setupEventListeners();
+        }
 
         // Функция загрузки данных МКБ
         function loadMkbData() {
             showLoading("Загрузка данных МКБ-10...");
             
             $.ajax({
-                url: CONFIG.scriptUrl,
+                url: CONFIG.scriptUrl + "?action=getMkb&cache=" + Date.now(),
                 type: "GET",
                 dataType: "json",
-                data: { action: "getMkb" },
-                timeout: 15000,
+                timeout: 20000,
                 success: function(response) {
-                    if (response && response.result === "success" && Array.isArray(response.data)) {
+                    try {
+                        validateMkbResponse(response);
                         mkbData = response.data;
                         initAutocomplete();
-                        $('#deathForm').fadeIn(300);
-                        showSuccess("Данные МКБ-10 успешно загружены");
-                    } else {
-                        throw new Error("Неверный формат данных МКБ");
+                        $('#deathForm').fadeIn(500);
+                        showSuccess(`Загружено ${response.data.length} кодов МКБ`);
+                    } catch (error) {
+                        handleMkbError(error);
                     }
                 },
                 error: function(xhr, status, error) {
-                    console.error("Ошибка загрузки МКБ:", error);
-                    showError("Не удалось загрузить данные МКБ. Используются стандартные значения.");
-                    loadDefaultMkbData();
+                    handleMkbError(new Error(
+                        `Ошибка загрузки: ${error}\n` +
+                        `Статус: ${status}\n` +
+                        `Ответ: ${xhr.responseText || 'нет данных'}`
+                    ));
                 },
                 complete: function() {
                     hideLoading();
@@ -401,191 +406,136 @@
             });
         }
 
-        // Загрузка тестовых данных
+        function validateMkbResponse(response) {
+            if (!response) throw new Error("Пустой ответ от сервера");
+            if (response.result !== "success") throw new Error(response.message || "Неизвестная ошибка сервера");
+            if (!Array.isArray(response.data)) throw new Error("Неверный формат данных МКБ");
+            if (response.data.length === 0) throw new Error("Получен пустой список кодов");
+        }
+
+        function handleMkbError(error) {
+            console.error("Ошибка загрузки МКБ:", error);
+            showError(`${error.message}. Используются стандартные значения.`);
+            loadDefaultMkbData();
+        }
+
         function loadDefaultMkbData() {
             mkbData = CONFIG.defaultMkbData;
             initAutocomplete();
-            $('#deathForm').fadeIn(300);
+            $('#deathForm').fadeIn(500);
         }
 
         // Инициализация автодополнения
         function initAutocomplete() {
             try {
-                // Связки полей диагнозов и кодов МКБ
-                const fieldPairs = [
-                    { diagnosis: "diseaseA", code: "mkbA" },
-                    { diagnosis: "diseaseB", code: "mkbB" },
-                    { diagnosis: "diseaseC", code: "mkbC" }
+                const fields = [
+                    { id: "diseaseA", linked: "mkbA", isCode: false },
+                    { id: "mkbA", linked: "diseaseA", isCode: true },
+                    { id: "diseaseB", linked: "mkbB", isCode: false },
+                    { id: "mkbB", linked: "diseaseB", isCode: true },
+                    { id: "diseaseC", linked: "mkbC", isCode: false },
+                    { id: "mkbC", linked: "diseaseC", isCode: true }
                 ];
 
-                // Инициализация автодополнения для каждой пары
-                fieldPairs.forEach(pair => {
-                    const diagnosisField = document.getElementById(pair.diagnosis);
-                    const codeField = document.getElementById(pair.code);
-
-                    if (diagnosisField && codeField) {
-                        // Автодополнение по диагнозу
-                        setupAutocomplete(diagnosisField, false, pair.code);
-                        
-                        // Автодополнение по коду
-                        setupAutocomplete(codeField, true, pair.diagnosis);
+                fields.forEach(field => {
+                    const element = document.getElementById(field.id);
+                    if (element) {
+                        setupAutocomplete(element, field.isCode, field.linked);
                     }
                 });
-
             } catch (error) {
                 console.error("Ошибка инициализации автодополнения:", error);
                 showError("Ошибка инициализации формы");
             }
         }
 
-        // Настройка автодополнения для конкретного поля
-        function setupAutocomplete(inputElement, isCodeField, linkedFieldId) {
-            if (!inputElement) return;
-
+        // Настройка автодополнения для одного поля
+        function setupAutocomplete(input, isCodeField, linkedFieldId) {
             let currentFocus = -1;
 
-            // Обработчик ввода
-            inputElement.addEventListener("input", function() {
-                const value = this.value.trim();
+            input.addEventListener("input", function() {
+                const val = this.value.trim();
                 closeAllLists();
-                
-                if (!value) return;
-                currentFocus = -1;
+                if (!val) return;
 
                 const container = document.createElement("DIV");
-                container.id = this.id + "-autocomplete-list";
                 container.className = "autocomplete-items";
                 this.parentNode.appendChild(container);
 
-                // Фильтрация данных
-                const filtered = mkbData.filter(item => {
-                    const field = isCodeField ? item.code : item.diagnosis;
-                    return field.toLowerCase().includes(value.toLowerCase());
-                }).slice(0, CONFIG.maxSuggestions);
+                const filtered = mkbData.filter(item => 
+                    (isCodeField ? item.code : item.diagnosis).toLowerCase().includes(val.toLowerCase())
+                ).slice(0, CONFIG.maxSuggestions);
 
-                // Если нет результатов
                 if (filtered.length === 0) {
-                    const noResults = document.createElement("DIV");
-                    noResults.innerHTML = "Нет результатов";
-                    container.appendChild(noResults);
+                    container.innerHTML = "<div>Нет результатов</div>";
                     return;
                 }
 
-                // Создание элементов автодополнения
                 filtered.forEach(item => {
-                    const element = document.createElement("DIV");
+                    const div = document.createElement("DIV");
+                    div.innerHTML = isCodeField 
+                        ? `<strong>${item.code}</strong> - ${item.diagnosis}`
+                        : `<strong>${item.diagnosis}</strong> - ${item.code}`;
+                    div.innerHTML += `<input type='hidden' value='${isCodeField ? item.code : item.diagnosis}'>`;
                     
-                    if (isCodeField) {
-                        element.innerHTML = `<strong>${item.code}</strong> - ${item.diagnosis}`;
-                        element.innerHTML += `<input type='hidden' value='${item.code}'>`;
-                    } else {
-                        element.innerHTML = `<strong>${item.diagnosis}</strong> - ${item.code}`;
-                        element.innerHTML += `<input type='hidden' value='${item.diagnosis}'>`;
-                    }
-
-                    // Обработчик клика
-                    element.addEventListener("click", function() {
-                        inputElement.value = this.querySelector("input").value;
-                        
-                        // Заполняем связанное поле
+                    div.addEventListener("click", function() {
+                        input.value = this.getElementsByTagName("input")[0].value;
                         if (linkedFieldId) {
-                            const linkedField = document.getElementById(linkedFieldId);
-                            if (linkedField) {
-                                linkedField.value = isCodeField ? item.diagnosis : item.code;
-                            }
+                            const linked = document.getElementById(linkedFieldId);
+                            if (linked) linked.value = isCodeField ? item.diagnosis : item.code;
                         }
-                        
                         closeAllLists();
                     });
                     
-                    container.appendChild(element);
+                    container.appendChild(div);
                 });
             });
 
-            // Обработчик клавиатуры
-            inputElement.addEventListener("keydown", function(e) {
-                const items = document.getElementById(this.id + "-autocomplete-list");
+            input.addEventListener("keydown", function(e) {
+                const items = this.parentNode.querySelector(".autocomplete-items");
                 if (!items) return;
                 
-                const itemsList = items.getElementsByTagName("div");
+                const divs = items.getElementsByTagName("div");
                 
-                // Стрелка вниз
                 if (e.key === "ArrowDown") {
-                    currentFocus++;
-                    setActive(itemsList);
-                } 
-                // Стрелка вверх
-                else if (e.key === "ArrowUp") {
-                    currentFocus--;
-                    setActive(itemsList);
-                } 
-                // Enter
-                else if (e.key === "Enter") {
+                    currentFocus = Math.min(currentFocus + 1, divs.length - 1);
+                    setActive(divs);
+                } else if (e.key === "ArrowUp") {
+                    currentFocus = Math.max(currentFocus - 1, -1);
+                    setActive(divs);
+                } else if (e.key === "Enter") {
                     e.preventDefault();
-                    if (currentFocus > -1 && itemsList[currentFocus]) {
-                        itemsList[currentFocus].click();
-                    }
+                    if (currentFocus > -1) divs[currentFocus].click();
                 }
             });
 
-            // Функция установки активного элемента
             function setActive(items) {
-                if (!items || items.length === 0) return;
-                
-                removeActive(items);
-                
-                // Корректировка текущего индекса
-                if (currentFocus >= items.length) currentFocus = 0;
-                if (currentFocus < 0) currentFocus = items.length - 1;
-                
-                // Добавление класса активному элементу
-                items[currentFocus].classList.add("autocomplete-active");
+                for (let i = 0; i < items.length; i++) {
+                    items[i].classList.toggle("autocomplete-active", i === currentFocus);
+                }
             }
 
-            // Функция удаления активного состояния
-            function removeActive(items) {
-                Array.from(items).forEach(item => {
-                    item.classList.remove("autocomplete-active");
-                });
-            }
-
-            // Функция закрытия всех списков автодополнения
-            function closeAllLists(exceptElement) {
+            function closeAllLists() {
                 const items = document.getElementsByClassName("autocomplete-items");
-                Array.from(items).forEach(item => {
-                    if (exceptElement !== item && exceptElement !== inputElement) {
-                        item.parentNode.removeChild(item);
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].parentNode !== input.parentNode) {
+                        items[i].parentNode.removeChild(items[i]);
                     }
-                });
+                }
             }
-
-            // Закрытие списков при клике вне их
-            document.addEventListener("click", function(e) {
-                closeAllLists(e.target);
-            });
         }
 
-        // Инициализация обработчиков событий
-        function initEventListeners() {
-            // Обработчики изменения дат
-            const birthDate = document.getElementById("birthDate");
-            const deathDate = document.getElementById("deathDate");
+        // Обработчики событий
+        function setupEventListeners() {
+            // Обработчики дат
+            document.getElementById("birthDate")?.addEventListener("change", calculateAge);
+            document.getElementById("deathDate")?.addEventListener("change", calculateAge);
             
-            if (birthDate && deathDate) {
-                birthDate.addEventListener("change", calculateAge);
-                deathDate.addEventListener("change", calculateAge);
-            }
-
-            // Обработчик отправки формы
-            const form = document.getElementById("deathForm");
-            if (form) {
-                form.addEventListener("submit", function(e) {
-                    e.preventDefault();
-                    if (!isFormSubmitting) {
-                        submitForm();
-                    }
-                });
-            }
+            // Обработчик формы
+            document.getElementById("deathForm")?.addEventListener("submit", function(e) {
+                e.preventDefault();
+                if (!isFormSubmitting) submitForm();
+            });
         }
 
         // Расчет возраста
@@ -594,21 +544,18 @@
                 const birthDate = new Date(document.getElementById("birthDate").value);
                 const deathDate = new Date(document.getElementById("deathDate").value);
                 
-                // Проверка валидности дат
-                if (isNaN(birthDate.getTime())) throw new Error("Неверная дата рождения");
-                if (isNaN(deathDate.getTime())) throw new Error("Неверная дата смерти");
+                if (isNaN(birthDate.getTime()) || isNaN(deathDate.getTime())) {
+                    throw new Error("Введите корректные даты");
+                }
                 
-                // Проверка, что дата смерти не раньше даты рождения
                 if (deathDate < birthDate) {
                     throw new Error("Дата смерти не может быть раньше даты рождения");
                 }
                 
-                // Расчет возраста
                 let age = deathDate.getFullYear() - birthDate.getFullYear();
-                const monthDiff = deathDate.getMonth() - birthDate.getMonth();
+                const m = deathDate.getMonth() - birthDate.getMonth();
                 
-                // Корректировка возраста, если день рождения еще не наступил
-                if (monthDiff < 0 || (monthDiff === 0 && deathDate.getDate() < birthDate.getDate())) {
+                if (m < 0 || (m === 0 && deathDate.getDate() < birthDate.getDate())) {
                     age--;
                 }
                 
@@ -623,142 +570,136 @@
         // Отправка формы
         function submitForm() {
             if (isFormSubmitting) return;
+            isFormSubmitting = true;
             
+            const submitBtn = document.getElementById("submitBtn");
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Отправка...";
+            showLoading("Отправка данных...");
+            hideMessages();
+
             try {
-                isFormSubmitting = true;
-                const submitBtn = document.getElementById("submitBtn");
-                submitBtn.disabled = true;
-                submitBtn.textContent = "Отправка...";
-                showLoading("Отправка данных...");
-                hideMessages();
-
-                // Сбор данных формы
-                const formData = {
-                    action: "submitForm",
-                    fullName: document.getElementById("fullName").value,
-                    gender: document.getElementById("gender").value,
-                    birthDate: document.getElementById("birthDate").value,
-                    deathDate: document.getElementById("deathDate").value,
-                    age: document.getElementById("age").value,
-                    address: document.getElementById("address").value,
-                    diseaseA: document.getElementById("diseaseA").value,
-                    mkbA: document.getElementById("mkbA").value,
-                    diseaseB: document.getElementById("diseaseB").value,
-                    mkbB: document.getElementById("mkbB").value,
-                    diseaseC: document.getElementById("diseaseC").value,
-                    mkbC: document.getElementById("mkbC").value,
-                    deathPlace: document.getElementById("deathPlace").value,
-                    district: document.getElementById("district").value,
-                    doctorName: document.getElementById("doctorName").value,
-                    medicalExams: document.getElementById("medicalExams").value,
-                    dispensaryAccount: document.getElementById("dispensaryAccount").value
-                };
-
-                // Валидация обязательных полей
-                const requiredFields = [
-                    'fullName', 'gender', 'birthDate', 
-                    'deathDate', 'address', 'diseaseA', 'mkbA'
-                ];
+                const formData = collectFormData();
+                validateFormData(formData);
                 
-                const missingFields = requiredFields.filter(field => !formData[field]);
-                
-                if (missingFields.length > 0) {
-                    throw new Error("Заполните все обязательные поля (помеченные *)");
-                }
-
-                // Отправка данных
                 $.ajax({
                     url: CONFIG.scriptUrl,
                     type: "POST",
                     contentType: "application/json",
                     dataType: "json",
                     data: JSON.stringify(formData),
-                    timeout: 20000,
+                    timeout: 30000,
                     success: function(response) {
-                        if (response && response.result === "success") {
-                            showSuccess("Данные успешно сохранены!");
-                            document.getElementById("deathForm").reset();
-                        } else {
-                            throw new Error(response?.message || "Неизвестная ошибка сервера");
-                        }
+                        handleSubmitResponse(response);
                     },
                     error: function(xhr, status, error) {
-                        const errorMsg = xhr.responseJSON?.message || error || "Ошибка соединения";
-                        throw new Error(errorMsg);
+                        handleSubmitError(xhr, status, error);
                     },
                     complete: function() {
-                        isFormSubmitting = false;
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = "Отправить данные";
-                        hideLoading();
+                        submitComplete();
                     }
                 });
-
             } catch (error) {
-                console.error("Ошибка отправки формы:", error);
-                showError(error.message);
-                isFormSubmitting = false;
-                const submitBtn = document.getElementById("submitBtn");
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = "Отправить данные";
-                }
-                hideLoading();
+                handleSubmitError(null, null, error);
+                submitComplete();
             }
         }
 
-        // ===== Вспомогательные функции ===== //
-        
-        // Показать индикатор загрузки
-        function showLoading(message = "Загрузка...") {
-            const loading = document.getElementById("loading");
-            if (loading) {
-                loading.textContent = message;
-                loading.style.display = "block";
-            }
+        function collectFormData() {
+            return {
+                action: "submitForm",
+                fullName: document.getElementById("fullName").value,
+                gender: document.getElementById("gender").value,
+                birthDate: document.getElementById("birthDate").value,
+                deathDate: document.getElementById("deathDate").value,
+                age: document.getElementById("age").value,
+                address: document.getElementById("address").value,
+                diseaseA: document.getElementById("diseaseA").value,
+                mkbA: document.getElementById("mkbA").value,
+                diseaseB: document.getElementById("diseaseB").value,
+                mkbB: document.getElementById("mkbB").value,
+                diseaseC: document.getElementById("diseaseC").value,
+                mkbC: document.getElementById("mkbC").value,
+                deathPlace: document.getElementById("deathPlace").value,
+                district: document.getElementById("district").value,
+                doctorName: document.getElementById("doctorName").value,
+                medicalExams: document.getElementById("medicalExams").value,
+                dispensaryAccount: document.getElementById("dispensaryAccount").value
+            };
         }
 
-        // Скрыть индикатор загрузки
-        function hideLoading() {
-            const loading = document.getElementById("loading");
-            if (loading) {
-                loading.style.display = "none";
-            }
-        }
-
-        // Показать сообщение об ошибке
-        function showError(message) {
-            const errorContainer = document.getElementById("errorContainer");
-            if (errorContainer) {
-                errorContainer.textContent = message;
-                errorContainer.style.display = "block";
-                // Автоматическое скрытие через 5 секунд
-                setTimeout(() => {
-                    errorContainer.style.display = "none";
-                }, 5000);
-            }
-        }
-
-        // Показать сообщение об успехе
-        function showSuccess(message) {
-            const successContainer = document.getElementById("successContainer");
-            if (successContainer) {
-                successContainer.textContent = message;
-                successContainer.style.display = "block";
-                // Автоматическое скрытие через 5 секунд
-                setTimeout(() => {
-                    successContainer.style.display = "none";
-                }, 5000);
-            }
-        }
-
-        // Скрыть все сообщения
-        function hideMessages() {
-            const errorContainer = document.getElementById("errorContainer");
-            const successContainer = document.getElementById("successContainer");
+        function validateFormData(data) {
+            const required = ['fullName', 'gender', 'birthDate', 'deathDate', 'address', 'diseaseA', 'mkbA'];
+            const missing = required.filter(field => !data[field]);
             
-            if (errorContainer) errorContainer.style.display = "none";
-            if (successContainer) successContainer.style.display = "none";
+            if (missing.length > 0) {
+                throw new Error("Заполните все обязательные поля");
+            }
+        }
+
+        function handleSubmitResponse(response) {
+            if (!response) throw new Error("Пустой ответ сервера");
+            if (response.result !== "success") throw new Error(response.message || "Ошибка сохранения");
+            
+            showSuccess("Данные успешно сохранены!");
+            document.getElementById("deathForm").reset();
+        }
+
+        function handleSubmitError(xhr, status, error) {
+            const errorMsg = error || 
+                           (xhr?.responseJSON?.message) || 
+                           (xhr?.responseText) || 
+                           "Неизвестная ошибка";
+            
+            console.error("Ошибка отправки:", {status, error, response: xhr?.responseText});
+            showError(`Ошибка отправки: ${errorMsg}`);
+        }
+
+        function submitComplete() {
+            isFormSubmitting = false;
+            const submitBtn = document.getElementById("submitBtn");
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Отправить данные";
+            }
+            hideLoading();
+        }
+
+        // Вспомогательные функции UI
+        function showLoading(message) {
+            const el = document.getElementById("loading");
+            if (el) {
+                el.textContent = message;
+                el.style.display = "block";
+            }
+        }
+
+        function hideLoading() {
+            const el = document.getElementById("loading");
+            if (el) el.style.display = "none";
+        }
+
+        function showError(message) {
+            const el = document.getElementById("errorContainer");
+            if (el) {
+                el.textContent = message;
+                el.style.display = "block";
+                setTimeout(() => el.style.display = "none", 5000);
+            }
+        }
+
+        function showSuccess(message) {
+            const el = document.getElementById("successContainer");
+            if (el) {
+                el.textContent = message;
+                el.style.display = "block";
+                setTimeout(() => el.style.display = "none", 5000);
+            }
+        }
+
+        function hideMessages() {
+            document.getElementById("errorContainer").style.display = "none";
+            document.getElementById("successContainer").style.display = "none";
         }
     </script>
 </body>
