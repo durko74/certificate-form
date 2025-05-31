@@ -413,11 +413,54 @@
             if (response.data.length === 0) throw new Error("Получен пустой список кодов");
         }
 
-        function handleMkbError(error) {
-            console.error("Ошибка загрузки МКБ:", error);
-            showError(`${error.message}. Используются стандартные значения.`);
-            loadDefaultMkbData();
+function handleMkbError(error) {
+    try {
+        // Логирование полной информации об ошибке
+        console.error("Ошибка загрузки МКБ:", {
+            message: error.message,
+            stack: error.stack,
+            name: error.name,
+            response: error.response
+        });
+
+        // Формируем понятное сообщение для пользователя
+        let userMessage = "Ошибка загрузки данных МКБ-10. ";
+        
+        if (error.message.includes("Failed to fetch")) {
+            userMessage += "Проблема с интернет-соединением.";
+        } else if (error.message.includes("timeout")) {
+            userMessage += "Превышено время ожидания ответа от сервера.";
+        } else if (error.message.includes("Network Error")) {
+            userMessage += "Сервер недоступен. Проверьте подключение к интернету.";
+        } else {
+            userMessage += "Используются стандартные значения.";
         }
+
+        // Показываем сообщение пользователю
+        showError(userMessage);
+        
+        // Загружаем резервные данные
+        loadDefaultMkbData();
+        
+        // Дополнительные действия при ошибке
+        if (navigator.onLine) {
+            // Если есть интернет, пробуем повторить через 30 секунд
+            setTimeout(() => {
+                showError("Повторная попытка загрузки данных...");
+                loadMkbData();
+            }, 30000);
+        } else {
+            // Если нет интернета, предлагаем обновить страницу
+            showError(`${userMessage} Проверьте подключение и обновите страницу.`);
+        }
+        
+    } catch (fallbackError) {
+        // Если произошла ошибка в самом обработчике ошибок
+        console.error("Ошибка в обработчике ошибок:", fallbackError);
+        showError("Критическая ошибка. Пожалуйста, обновите страницу.");
+        loadDefaultMkbData();
+    }
+}
 
         function loadDefaultMkbData() {
             mkbData = CONFIG.defaultMkbData;
